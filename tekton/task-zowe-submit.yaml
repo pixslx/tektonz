@@ -1,0 +1,62 @@
+apiVersion: tekton.dev/v1
+kind: ClusterTask
+metadata:
+  annotations:
+    tekton.dev/categories: Zowe
+    tekton.dev/displayName: Zowe submit job
+    tekton.dev/pipelines.minVersion: 0.38.0
+    tekton.dev/platforms: 'linux/amd64,linux/s390x'
+    tekton.dev/tags: zowe
+  name: zowe-submit
+spec:
+  description: |-
+    These Tasks are Git tasks to work with repositories used by other tasks in your Pipeline.
+    The git-clone Task will clone a repo from the provided url into the output Workspace. By default the repo will be cloned into the root of your Workspace. You can clone into a subdirectory by setting this Task's subdirectory param. This Task also supports sparse checkouts. To perform a sparse checkout, pass a list of comma separated directory patterns to this Task's sparseCheckoutDirectories param.
+  params:
+    - default: zosmf
+      description: ZOWE profile to use
+      name: zowe-profile
+      type: string
+    - description: Dataset member to submit
+      name: jcl
+      type: string
+  steps:
+    - computeResources: {}
+      image: 'ghcr.io/true-north-engineering/python-zowe-312:latest'
+      name: submit
+      script: |
+        #!/opt/app-root/bin/python
+
+        import sys
+        import os
+        import time
+        from zowe.core_for_zowe_sdk import ProfileManager
+        from zowe.zos_jobs_for_zowe_sdk import Jobs
+
+        os.system("cp $(workspaces.zowe-config.path)/zowe.*.json . ")
+
+        jcl = "$(params.jcl)"
+        manager = ProfileManager()
+
+        profile = manager.load(profile_type="$(params.zowe-profile)")
+        jobs = Jobs(profile)
+
+        print(f'Submitting job {jcl}')
+        jobResponse = jobs.submit_from_mainframe(jcl)
+        while(jobResponse.status != "OUTPUT"):
+            print(f'Job id {jobResponse.jobid} in status {jobResponse.status}')
+            time.sleep(5)
+            jobResponse = jobs.get_job_status(jobResponse.jobname, jobResponse.jobid)
+
+        print(f'Job id {jobResponse.jobid} in status {jobResponse.status} and return code {jobResponse.retcode}')
+
+        for spool_file in jobs.get_spool_files(jobResponse.job_correlator):
+            print(f'-------------------- STEPNO({spool_file.id}) - STEPNAME({spool_file.stepname}) - DDNAME({spool_file.ddname}) --------------------')
+            print(jobs.get_spool_file_contents(spool_file.job_correlator, spool_file.id))
+            print()
+
+        if(jobResponse.retcode != "CC 0000"):
+          sys.exit(1)
+      workingDir: /tmp
+  workspaces:
+    - name: zowe-config

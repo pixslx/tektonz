@@ -1,0 +1,69 @@
+apiVersion: tekton.dev/v1
+kind: ClusterTask
+metadata:
+  annotations:
+    tekton.dev/categories: Zowe
+    tekton.dev/displayName: Zowe upload files
+    tekton.dev/pipelines.minVersion: 0.38.0
+    tekton.dev/platforms: 'linux/amd64,linux/s390x'
+    tekton.dev/tags: zowe
+  name: zowe-upload
+spec:
+  description: |-
+    These Tasks are Git tasks to work with repositories used by other tasks in your Pipeline.
+    The git-clone Task will clone a repo from the provided url into the output Workspace. By default the repo will be cloned into the root of your Workspace. You can clone into a subdirectory by setting this Task's subdirectory param. This Task also supports sparse checkouts. To perform a sparse checkout, pass a list of comma separated directory patterns to this Task's sparseCheckoutDirectories param.
+  params:
+    - default: zosmf
+      description: ZOWE profile to use
+      name: zowe-profile
+      type: string
+    - description: Directory with files to upload
+      name: input-dir
+      type: string
+    - description: Dataset to upload files to
+      name: output-dataset
+      type: string
+    - default: '*'
+      description: File to upload
+      name: file
+      type: string
+  steps:
+    - computeResources: {}
+      image: 'ghcr.io/true-north-engineering/python-zowe-312:latest'
+      name: upload
+      script: |
+        #!/opt/app-root/bin/python
+
+        import os
+        from zowe.core_for_zowe_sdk import ProfileManager
+        from zowe.zos_files_for_zowe_sdk import Datasets
+        from os import listdir
+        from os.path import isfile, join
+        from pathlib import Path
+
+        os.system("cp $(workspaces.zowe-config.path)/zowe.*.json . ")
+
+        input_dir = "$(params.input-dir)"
+        output_dataset = "$(params.output-dataset)"
+        file = "$(params.file)"
+        manager = ProfileManager()
+
+        profile = manager.load(profile_type="$(params.zowe-profile)")
+        datasets = Datasets(profile)
+
+        if (file == "*"):
+          files = [f for f in listdir(input_dir) if isfile(join(input_dir, f))]
+          for f in files:            
+            filename_wo_ext = Path(f'{input_dir}/{f}').stem
+            print(f'Uploading file {input_dir}/{f} to {output_dataset}({filename_wo_ext}) ...')
+            datasets.upload_file(f'{input_dir}/{f}', f'{output_dataset}({filename_wo_ext})')
+            print(f'DONE')
+        else:
+          filename_wo_ext = Path(f'{input_dir}/{file}').stem
+          print(f'Uploading file {input_dir}/{file} to {output_dataset}({filename_wo_ext}) ...')
+          datasets.upload_file(f'{input_dir}/{file}', f'{output_dataset}({filename_wo_ext})')
+          print(f'DONE')
+      workingDir: $(workspaces.source.path)
+  workspaces:
+    - name: source
+    - name: zowe-config

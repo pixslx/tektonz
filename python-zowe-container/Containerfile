@@ -1,0 +1,4 @@
+FROM registry.access.redhat.com/rhel9/python-312
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt

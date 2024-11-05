@@ -1,0 +1,71 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: cobol-compile
+  namespace: tektonz
+spec:
+  tasks:
+    - name: git-clone
+      params:
+        - name: url
+          value: 'git@github.com:pixslx/cobol-programming-course.git'
+      taskRef:
+        kind: ClusterTask
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: source
+    - name: upload-cobol
+      params:
+        - name: input-dir
+          value: cbl
+        - name: output-dataset
+          value: USERID.CBL
+        - name: file
+          value: CBLJSON.cbl
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: zowe-upload
+      workspaces:
+        - name: source
+          workspace: source
+        - name: zowe-config
+          workspace: zowe-config
+    - name: upload-jcl
+      params:
+        - name: input-dir
+          value: jcl
+        - name: output-dataset
+          value: USERID.JCL
+        - name: file
+          value: '*'
+      runAfter:
+        - git-clone
+      taskRef:
+        kind: ClusterTask
+        name: zowe-upload
+      workspaces:
+        - name: source
+          workspace: source
+        - name: zowe-config
+          workspace: zowe-config
+    - name: zowe-submit
+      params:
+        - name: zowe-profile
+          value: zosmf
+        - name: jcl
+          value: USERID.JCL(JSONJCL)
+      runAfter:
+        - upload-jcl
+        - upload-cobol
+      taskRef:
+        kind: ClusterTask
+        name: zowe-submit
+      workspaces:
+        - name: zowe-config
+          workspace: zowe-config
+  workspaces:
+    - name: source
+    - name: zowe-config
