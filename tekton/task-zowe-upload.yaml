@@ -1,4 +1,4 @@
-apiVersion: tekton.dev/v1
+apiVersion: tekton.dev/v1beta1
 kind: ClusterTask
 metadata:
   annotations:
@@ -10,8 +10,7 @@ metadata:
   name: zowe-upload
 spec:
   description: |-
-    These Tasks are Git tasks to work with repositories used by other tasks in your Pipeline.
-    The git-clone Task will clone a repo from the provided url into the output Workspace. By default the repo will be cloned into the root of your Workspace. You can clone into a subdirectory by setting this Task's subdirectory param. This Task also supports sparse checkouts. To perform a sparse checkout, pass a list of comma separated directory patterns to this Task's sparseCheckoutDirectories param.
+    This task uses ZOWE Python SDK to interface with IBM Mainframe and upload local files to partitioned datasets.
   params:
     - default: zosmf
       description: ZOWE profile to use
@@ -28,8 +27,7 @@ spec:
       name: file
       type: string
   steps:
-    - computeResources: {}
-      image: 'ghcr.io/true-north-engineering/python-zowe-312:latest'
+    - image: 'ghcr.io/pixslx/python-zowe-312:latest'
       name: upload
       script: |
         #!/opt/app-root/bin/python
